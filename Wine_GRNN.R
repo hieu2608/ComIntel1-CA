@@ -1,5 +1,7 @@
 ### Setup data for winequality
-# install.packages('grnn')
+pkgs <- c('doParallel', 'foreach', 'grnn')
+lapply(pkgs, require, character.only = T)
+registerDoParallel(cores=8)
 
 library(grnn)
 set.seed(123)
@@ -21,52 +23,42 @@ wine_index <- 1:wine_size
 wine_positions <- sample(wine_index, trunc(wine_size * 0.75))
 
 wine_training <- wine_data[wine_positions,]
-wine_testing <- wine_data[-wine_positions,1:wine_length-1]
+wine_testing <- wine_data[-wine_positions,]
 
-##Function to predict and verify prediction of GRNN based on sigma
-wine_grnn_accuracy <- function(sigma, data, positions, length, training, testing) {
-  result = data[-positions,]
-  result$actual = result[,length]
-  result$predict = -1
-  
-  grnn <- learn(training, variable.column=length)
-  grnn <- smooth(grnn, sigma = sigma)
-
-  ###GRNN Testing for Wine
-  for(i in 1:nrow(testing))
-  {
-    vec <- as.matrix(testing[i,])
-    res <- guess(grnn, vec)
-
-    if(is.nan(res))
-    {
-      cat("Entry ",i," Generated NaN result!\n")
-    }
-    else
-    {
-      result$predict[i] <- res
-    }
+### Define a function for prediction given a GRNN
+pred_grnn <- function(test, grnn){
+  group <- split(test, 1:nrow(test))
+  pred <- foreach(i = group, .combine = rbind) %dopar% {
+    data.frame(pred = guess(grnn, as.matrix(i)), i, row.names = NULL)
   }
-  
-  grnn_result = data.frame(sigma=sigma, size=0, correct=0, accuracy=0)
-  grnn_result$size = nrow(result)
-  grnn_result$correct = nrow(result[round(result$predict) == result$actual,])
-  cat("-------------- Sigma = ", sigma, "----------------------", "\n")
-  cat("No of test cases = ", grnn_result$size ,"\n")
-  cat("Correct predictions = ", grnn_result$correct ,"\n")
-  grnn_result$accuracy = grnn_result$correct / grnn_result$size * 100;
-  cat("Accuracy = ", grnn_result$accuracy, "\n")
-  
-  return(grnn_result)
 }
 
-### Using list of sigma to choose the best prediction
-sigma_list <- c(0.1, 0.2, 0.3, 0.4, 0.5, 0.6)
-wine_result <- data.frame(sigma=sigma_list, correct=0, size=0, accuracy=0)
-for(i in 1:length(sigma_list)) {
-  grnn_result <- wine_grnn_accuracy(sigma_list[i], wine_data, wine_positions, wine_length, wine_training, wine_testing)
-  wine_result$sigma[i] = grnn_result$sigma
-  wine_result$size[i] = grnn_result$size
-  wine_result$correct[i] = grnn_result$correct
-  wine_result$accuracy[i] = grnn_result$accuracy
+# Search for optimal Sigma and output result as a list
+time_start <- Sys.time()
+cv <- foreach(s = c(0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8), .combine = rbind) %dopar% {
+  grnn <- smooth(learn(wine_training, variable.column = ncol(wine_training)), sigma = s)
+  pred <- pred_grnn(wine_testing[, -ncol(wine_testing)], grnn)
+  test_result = data.frame(actual=wine_testing[, ncol(wine_testing)],predict=pred$pred)
+  correct = nrow(test_result[round(test_result$predict) == test_result$actual,])
+  size = nrow(test_result)
+  accuracy = correct / size * 100
+  sse <- sum((wine_testing[, ncol(wine_testing)] - pred$pred)^2) 
+  data.frame(s, correct, size, accuracy, sse)
 }
+time_end <- Sys.time()
+time_taken <- time_end - time_start
+
+cat("\n### SSE FROM VALIDATIONS ###\n")
+print(cv)
+jpeg('grnn_cv.jpeg', width = 800, height = 400, quality = 100)
+with(cv, plot(s, sse, type = 'b'))
+#  
+# cat("\n### BEST SIGMA WITH THE LOWEST SSE ###\n")
+# print(best.s <- cv[cv$sse == min(cv$sse), 1])
+ 
+# # SCORE THE WHOLE DATASET WITH GRNN
+# final_grnn <- smooth(learn(wine_training, variable.column = ncol(wine_training)), sigma = best.s)
+# pred_all <- pred_grnn(win[, -ncol(wine_testing)], final_grnn)
+# jpeg('grnn_fit.jpeg', width = 800, height = 400, quality = 100)
+# plot(pred_all$pred, boston$medv) 
+# dev.off()
