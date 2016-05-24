@@ -5,7 +5,7 @@ library(grnn)
 set.seed(123)
 
 #wine_data = read.csv("F:\\Mtech ISS\\Unit 2-6 - Computation Intelligence I\\CA\\data\\winequality-white.csv", header=TRUE)
-data = read.csv("~/Workspace/ComIntel1-CA/data/winequality-white.csv", header=TRUE)
+data = read.csv(file=file.path("data", "winequality-white.csv"), header=TRUE)
 
 ### Pre-processing data
 X = data[-12]
