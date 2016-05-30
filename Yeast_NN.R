@@ -98,3 +98,18 @@ rbfDDA_test_predict <- data.frame(actual=rbf_test_target, predict=encodeClassLab
 rbfDDA_accuracy <- mean(rbfDDA_test_predict$actual == rbfDDA_test_predict$predict)
 table(rbfDDA_test_predict$actual, round(rbfDDA_test_predict$predict))
 cat(rbfDDA_accuracy)
+
+### Hybrid predicion
+hybrid_test_target <- encodeClassLabels(decodeClassLabels(yeast_testing_target))
+hybrid_data = data.frame(mlp_predict=mlp_test_predict$predict, rbf_predict=rbf_test_predict$predict, 
+                         grnn_predict=grnn_test_predict$predict, nnet_predict=nnet_test_predict$predict,
+                         rbfDDA_predict=rbfDDA_test_predict$predict)
+hybrid_matrix = data.matrix(hybrid_data)
+names <- c("mlp","rbf","grnn", "nnet", "rbfDDA")
+hybrid_accuracy = matrix(nrow = ncol(hybrid_data), ncol = ncol(hybrid_data), dimnames = list(names, names))
+for (i in 1:ncol(hybrid_data)) {
+  for (j in 1:ncol(hybrid_data)) {
+    hybrid_accuracy[i,j] = mean(hybrid_test_target == round((hybrid_matrix[,i]+hybrid_matrix[,j])/2))
+  }
+}
+show(hybrid_accuracy)
