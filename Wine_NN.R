@@ -94,7 +94,6 @@ grnn_analysis <- foreach(s = sigma, .combine=rbind) %dopar% {
   mse <- mean((test_predict$actual-test_predict$predict)^2)
   result = data.frame(s, accuracy, mse, time=Sys.time()-start)
 }
-# grnn_sigma <- grnn_analysis[grnn_analysis$accuracy == max(grnn_analysis$accuracy),1]
 grnn_sigma <- grnn_analysis[grnn_analysis$mse == min(grnn_analysis$mse),1]
 grnn_model <- smooth(learn(grnn_training, variable.column=ncol(grnn_training)), sigma = grnn_sigma)
 grnn_test_predict <- pred_grnn(grnn_model, input=grnn_test_input, target=grnn_test_target)
